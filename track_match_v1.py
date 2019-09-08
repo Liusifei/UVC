@@ -14,7 +14,7 @@ import torch.nn as nn
 from libs.loader import VidListv1, VidListv2
 import torch.backends.cudnn as cudnn
 import libs.transforms_multi as transforms
-from model import track_match_comb as Model
+from libs.model import track_match_comb as Model
 from libs.loss import L1_loss
 from libs.concentration_loss import ConcentrationSwitchLoss as ConcentrationLoss
 from libs.train_utils import save_vis, AverageMeter, save_checkpoint, log_current
@@ -30,8 +30,8 @@ def parse_args():
 	# file/folder pathes
 	parser.add_argument("--videoRoot", type=str, default="/Data2/Kinetices/compress/train_256/", help='train video path')
 	parser.add_argument("--videoList", type=str, default="/Data2/Kinetices/compress/train.txt", help='train video list (after "train_256")')
-	parser.add_argument("--encoder_dir",type=str, default='ae_small/encoder_single_gpu.pth', help="pretrained encoder")
-	parser.add_argument("--decoder_dir",type=str, default='ae_small/decoder_single_gpu.pth', help="pretrained decoder")
+	parser.add_argument("--encoder_dir",type=str, default='weights/encoder_single_gpu.pth', help="pretrained encoder")
+	parser.add_argument("--decoder_dir",type=str, default='weights/decoder_single_gpu.pth', help="pretrained decoder")
 	parser.add_argument('--resume', type=str, default='', metavar='PATH', help='path to latest checkpoint (default: none)')
 	parser.add_argument("-c","--savedir",type=str,default="match_track_comb/",help='checkpoints path')
 	parser.add_argument("--Resnet", type=str, default="r18", help="choose from r18 or r50")
@@ -51,7 +51,7 @@ def parse_args():
 	parser.add_argument("--save_interval",type=int,default=1000,help='save every x epoch')
 	parser.add_argument("--momentum",type=float,default=0.9,help='momentum')
 	parser.add_argument("--weight_decay",type=float,default=0.005,help='weight decay')
-	parser.add_argument("--device", type=int, default=4, help="0~device_count-1 for single GPU, device_count for dataparallel.")
+	parser.add_argument("--device", type=int, default=0, help="0~device_count-1 for single GPU, device_count for dataparallel.")
 	parser.add_argument("--temp", type=int, default=1, help="temprature for softmax.")
 
 	# set epoches
@@ -66,7 +66,7 @@ def parse_args():
 	parser.add_argument("--color_switch",type=float,default=0.1, help='weight of color switch loss')
 	parser.add_argument("--coord_switch",type=float,default=0.1, help='weight of color switch loss')
 
-	
+
 	print("Begin parser arguments.")
 	args = parser.parse_args()
 	assert args.videoRoot is not None
@@ -74,7 +74,7 @@ def parse_args():
 	if not os.path.exists(args.savedir):
 		os.mkdir(args.savedir)
 	args.savepatch = os.path.join(args.savedir,'savepatch')
-	args.logfile = open(os.path.join(args.savedir,"logargs.txt"),"w") 
+	args.logfile = open(os.path.join(args.savedir,"logargs.txt"),"w")
 	args.multiGPU = args.device == torch.cuda.device_count()
 
 	if not args.multiGPU:
@@ -102,13 +102,13 @@ def parse_args():
 	print('\n')
 	args.logfile.write(' '.join(sys.argv))
 	args.logfile.write('\n')
-	
+
 	for k, v in args.__dict__.items():
 		print(k, ':', v)
 		args.logfile.write('{}:{}\n'.format(k,v))
 	args.logfile.close()
 	return args
-	
+
 
 def adjust_learning_rate(args, optimizer, epoch):
 	"""Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
@@ -122,7 +122,7 @@ def adjust_learning_rate(args, optimizer, epoch):
 	for param_group in optimizer.param_groups:
 		param_group['lr'] = lr
 	return lr
-	
+
 
 def create_loader(args):
 	dataset_train_warm = VidListv1(args.videoRoot, args.videoList, args.patch_size, args.rotate, args.scale)
@@ -174,8 +174,8 @@ def train(args):
 			print("=> loaded checkpoint '{} ({})' (epoch {})"
 				  .format(args.resume, best_loss, checkpoint['epoch']))
 		else:
-			print("=> no checkpoint found at '{}'".format(args.resume))		
-			
+			print("=> no checkpoint found at '{}'".format(args.resume))
+
 	for epoch in range(start_epoch, args.nepoch):
 		if epoch < args.wepoch:
 			lr = adjust_learning_rate(args, optimizer, epoch)
@@ -193,7 +193,7 @@ def forward(frame1, frame2, model, warm_up, patch_size=None):
 		output = model(frame1, frame2)
 	else:
 		output = model(frame1, frame2, warm_up=False, patch_size=[patch_size//8, patch_size//8])
-	
+
 	return output
 
 
@@ -216,7 +216,7 @@ def train_iter(args, loader, model, closs, optimizer, epoch, best_loss):
 	for i,frames in enumerate(loader):
 		frame1_var = frames[0].cuda()
 		frame2_var = frames[1].cuda()
-		
+
 		if epoch < args.wepoch:
 			output = forward(frame1_var, frame2_var, model, warm_up=True)
 			color2_est = output[0]
@@ -226,7 +226,7 @@ def train_iter(args, loader, model, closs, optimizer, epoch, best_loss):
 
 			if args.color_switch_flag:
 				color1_est = output[2]
-				
+
 			loss_ = L1_loss(color2_est, frame2_var, 10, 10, thr=thr, pred1=color1_est, frame1_var = frame1_var)
 
 			if epoch >=1 and args.lc > 0:
@@ -257,17 +257,17 @@ def train_iter(args, loader, model, closs, optimizer, epoch, best_loss):
 
 			loss_color = L1_loss(color2_est, Fcolor2_crop, 10, 10, thr=thr, pred1=color1_est, frame1_var = frame1_var)
 			loss_ = loss_color + constraint_loss
-			
+
 			if args.coord_switch_flag:
 				count += 1
 				grids = output[count]
 				C11 = output[count+1]
 				loss_coord = args.coord_switch * coord_switch_loss(C11, grids)
 				loss = loss + loss_coord
-				sc_losses.update(loss_coord.item(), frame1_var.size(0))				
+				sc_losses.update(loss_coord.item(), frame1_var.size(0))
 			else:
 				loss = loss_
-				
+
 			if(i % args.log_interval == 0):
 				save_vis(color2_est, Fcolor2_crop, frame1_var, frame2_var, args.savepatch, new_c)
 
@@ -276,7 +276,7 @@ def train_iter(args, loader, model, closs, optimizer, epoch, best_loss):
 		loss.backward()
 		optimizer.step()
 		batch_time.update(time.time() - end)
-		end = time.time()			
+		end = time.time()
 
 		if epoch >= args.wepoch and args.coord_switch_flag:
 			logger.info('Epoch: [{0}][{1}/{2}]\t'

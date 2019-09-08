@@ -1,9 +1,10 @@
 import cv2
 import torch
 import numpy as np
-import seaborn as sns
-from model import transform
+#import seaborn as sns
+from .model import transform
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import torchvision.utils as vutils
 
 UNKNOWN_FLOW_THRESH = 1e7
 SMALLFLOW = 0.0
@@ -23,7 +24,7 @@ def prepare_img(img):
     #cv2.imwrite(filename, img, [cv2.IMWRITE_PNG_COMPRESSION, 0])
     return img
 
-def flow_to_rgb(flow):
+def flow_to_rgb(flow, mr = None):
     """
     Convert flow into middlebury color code image
     :param flow: optical flow map
@@ -49,6 +50,8 @@ def flow_to_rgb(flow):
 
     rad = np.sqrt(u ** 2 + v ** 2)
     maxrad = max(-1, np.max(rad))
+    if(mr is not None):
+        maxrad = mr
 
     #print "max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu,maxu, minv, maxv)
 
@@ -60,7 +63,7 @@ def flow_to_rgb(flow):
     idx = np.repeat(idxUnknow[:, :, np.newaxis], 3, axis=2)
     img[idx] = 0
 
-    return np.float32(img) / 255.0
+    return np.float32(img) / 255.0, maxrad
 
 
 def compute_color(u, v):
@@ -193,7 +196,7 @@ def draw_certainty_map(map, normalize=False):
         # draw heat map
         ax = sns.heatmap(map, yticklabels=False, xticklabels=False, cbar=True)
     else:
-        ax = sns.heatmap(map, yticklabels=False, xticklabels=False, vmin=0.0, vmax=1.0, cbar=True)
+        ax = sns.heatmap(map, yticklabels=False, xticklabels=False, vmin=0.0, vmax=1.5, cbar=True)
     figure = ax.get_figure()
     width, height = figure.get_size_inches() * figure.get_dpi()
 
@@ -211,3 +214,95 @@ def draw_certainty_map(map, normalize=False):
     rect = image
     figure.clf()
     return rect
+
+def draw_foreground(aff, mask, temp = 1, reverse=False):
+    """
+    INPUTS:
+     - aff: a b*N*N affinity matrix, without applying any softmax
+     - mask: a b*h*w segmentation mask of the first frame
+     - temp: temperature
+     - reverse: if False, calculates where does each pixel go
+                if True, calculates where does each pixel come from
+    """
+    mask = torch.argmax(mask, dim = 0)
+    h,w = mask.size()
+    res = torch.zeros(h,w)
+    if(reverse):
+        # apply softmax to each column
+        aff = torch.nn.functional.softmax(aff*temp, dim = 0)
+    else:
+        # apply softmax to each row
+        aff = torch.nn.functional.softmax(aff*temp, dim = 1)
+    # extract forground affinity
+    # N
+    mask_flat = mask.view(-1)
+    # x
+    fgcmask = mask_flat.nonzero().squeeze()
+    if(reverse):
+        # N * x
+        Faff = aff[:,fgcmask]
+    else:
+        # x * N
+        Faff = aff[fgcmask,:]
+
+    theta = torch.tensor([[1,0,0],[0,1,0]])
+    theta = theta.unsqueeze(0).repeat(1,1,1)
+    theta = theta.float()
+
+    # grid is a uniform grid with left top (-1,1) and right bottom (1,1)
+    # 1 * (h*w) * 2
+    grid = torch.nn.functional.affine_grid(theta, torch.Size((1,1,h,w)))
+    # N*2
+    grid = grid.squeeze()
+    grid = grid.view(-1,2)
+    grid = (grid + 1)/2
+    grid[:,0] *= w
+    grid[:,1] *= h
+    if(reverse):
+        grid = grid.permute(1,0)
+        # 2 * x
+        Fcoord = torch.mm(grid, Faff)
+        Fcoord = Fcoord.long()
+        res[Fcoord[1,:], Fcoord[0,:]] = 1
+    else:
+        # x * 2
+        grid -= 1
+        Fcoord = torch.mm(Faff, grid)
+        Fcoord = Fcoord.long()
+        res[Fcoord[:,1], Fcoord[:,0]] = 1
+    res = torch.nn.functional.interpolate(res.unsqueeze(0).unsqueeze(0), scale_factor=8, mode='bilinear')
+    return res
+
+def norm_mask(mask):
+    """
+    INPUTS:
+     - mask: segmentation mask
+    """
+    c,h,w = mask.size()
+    for cnt in range(c):
+        mask_cnt = mask[cnt,:,:]
+        if(mask_cnt.max() > 0):
+            mask_cnt = (mask_cnt - mask_cnt.min())
+            mask_cnt = mask_cnt/mask_cnt.max()
+            mask[cnt,:,:] = mask_cnt
+    return mask
+
+def read_flo(filename):
+    FLO_TAG = 202021.25
+
+    with open(filename, 'rb') as f:
+        tag = np.fromfile(f, np.float32, count=1)
+
+        if tag != FLO_TAG:
+            sys.exit('Wrong tag. Invalid .flo file %s' %filename)
+        else:
+            w = int(np.fromfile(f, np.int32, count=1))
+            h = int(np.fromfile(f, np.int32, count=1))
+            #print 'Reading %d x %d flo file' % (w, h)
+
+            data = np.fromfile(f, np.float32, count=2*w*h)
+
+            # Reshape data into 3D array (columns, rows, bands)
+            flow = np.resize(data, (h, w, 2))
+
+    return flow

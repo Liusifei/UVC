@@ -5,7 +5,7 @@ import torch
 import scipy.misc
 import numpy as np
 from PIL import Image
-import transforms_multi as transforms
+import libs.transforms_multi as transforms
 
 def print_options(opt, test=False):
     message = ''

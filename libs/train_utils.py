@@ -4,67 +4,37 @@ import torch
 import shutil
 # import visdom
 import numpy as np
-from libs.vis_utils import draw_certainty_map, flow_to_rgb, prepare_img
 from os.path import join
 
-
-def draw_bbox(img,bbox):
+def save_vis(pred, gt2, gt1, out_dir, gt_grey=False, prefix=0):
 	"""
 	INPUTS:
-	 - segmentation, h * w * 3 numpy array
-	 - bbox: left, right, top, bottom
-	OUTPUT:
-	 - image with a drawn bbox
-	"""
-	# print("bbox: ", bbox)
-	pt1 = (int(bbox[0]),int(bbox[2]))
-	pt2 = (int(bbox[1]),int(bbox[3]))
-	color = np.array([51,255,255], dtype=np.uint8)
-	c = tuple(map(int, color))
-	img = cv2.rectangle(img, pt1, pt2, c, 5)
-	return img
-
-def save_vis(pred2, gt2, frame1, frame2, savedir, new_c=None):
-	"""
-	INPUTS:
-	 - pred: predicted patch, a 3xpatch_sizexpatch_size tensor
-	 - gt2: GT patch, a 3xhxw tensor
+	 - pred: predicted Lab image, a 3xhxw tensor
+	 - gt2: second GT frame, a 3xhxw tensor
 	 - gt1: first GT frame, a 3xhxw tensor
+	 - out_dir: output image save path
 	 - gt_grey: whether to use ground trught L channel in predicted image
 	"""
-	b = pred2.size(0)
-	pred2 = pred2 * 128 + 128
+	b = pred.size(0)
+	pred = pred * 128 + 128
+	gt1 = gt1 * 128 + 128
 	gt2 = gt2 * 128 + 128
-	frame1 = frame1 * 128 + 128
-	frame2 = frame2 * 128 + 128
 
+	if(gt_grey):
+		pred[:,0,:,:] = gt2[:,0,:,:]
 	for cnt in range(b):
-		im = pred2[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
+		im = pred[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
 		im_bgr = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 		im_pred = np.clip(im_bgr, 0, 255)
 
 		im = gt2[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
 		im_gt2 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 
-		im = frame1[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
-		im_frame1 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
-		# ori_bbox = ori_c[cnt]
-		# im_frame1 = draw_bbox(im_frame1,ori_bbox)
+		im = gt1[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
+		im_gt1 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 
-		im = frame2[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
-		im_frame2 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
-		
-		if new_c is not None:
-			new_bbox = new_c[cnt]
-			im_frame2 = draw_bbox(im_frame2,new_bbox)
-			im_frame2 = cv2.resize(im_frame2, (im_frame1.shape[0],im_frame1.shape[1]))
-			
-			im = np.concatenate((im_frame1, im_frame2), axis = 1)
-			cv2.imwrite(os.path.join(savedir, "{:02d}_loc.png".format(cnt)), im)
-
-		im = np.concatenate((im_frame1, im_pred, im_gt2), axis = 1)
-		cv2.imwrite(os.path.join(savedir, "{:02d}_patch.png".format(cnt)), im)
-		
+		im = np.concatenate((im_gt1, im_gt2, im_pred), axis = 1)
+		cv2.imwrite(os.path.join(out_dir, "{:02d}{:02d}.png".format(prefix,cnt)), im)
 
 def save_vis_ae(pred, gt, savepath):
 	b = pred.size(0)
@@ -142,33 +112,19 @@ def log_current(epoch, loss_ave, best_loss, filename = "log_current.txt", savedi
         print("epoch: {}".format(epoch), file=text_file)
         print("best_loss: {}".format(best_loss), file=text_file)
         print("current_loss: {}".format(loss_ave), file=text_file)
-# class loss_plotter():
-#     def __init__(self, port = 8097, server = "http://localhost"):
-#         self.vis = visdom.Visdom(port=port, server=server)
-#         assert self.vis.check_connection(timeout_seconds=3),'No connection could be formed quickly'
-#         self.wins = {}
-#         self.losses = {}
-#         self.cnt = 0
 
-#     def plot(self, losses, names):
-#         self.cnt += 1
-#         X = np.array(range(1, self.cnt+1))
-#         for name,loss in zip(names, losses):
-#             if not (name in self.wins):
-#                 self.losses[name] = []
-#                 self.losses[name].append(loss)
-#                 Y = np.array(self.losses[name])
-#                 self.wins[name] = self.vis.line(
-#                     Y = Y,
-#                     X = X,
-#                     opts = dict(markers=False, legend=[name])
-#                 )
-#             else:
-#                 self.losses[name].append(loss)
-#                 Y = np.array(self.losses[name])
-#                 self.vis.line(
-#                     Y = Y,
-#                     X = X,
-#                     opts = dict(markers=False, legend=[name]),
-#                     win = self.wins[name]
-#                 )
+def print_options(opt):
+	message = ''
+	message += '----------------- Options ---------------\n'
+	for k, v in sorted(vars(opt).items()):
+	    comment = ''
+	    message += '{:>25}: {:<30}{}\n'.format(str(k), str(v), comment)
+	message += '----------------- End -------------------'
+	print(message)
+
+	# save to the disk
+	expr_dir = os.path.join(opt.savedir)
+	file_name = os.path.join(expr_dir, 'opt.txt')
+	with open(file_name, 'wt') as opt_file:
+		opt_file.write(message)
+		opt_file.write('\n')
