@@ -36,7 +36,6 @@ def parse_args():
 	parser.add_argument("-c","--savedir",type=str,default="match_track_comb/",help='checkpoints path')
 	parser.add_argument("--Resnet", type=str, default="r18", help="choose from r18 or r50")
 
-
 	# main parameters
 	parser.add_argument("--pretrainRes",action="store_true")
 	parser.add_argument("--batchsize",type=int, default=1, help="batchsize")
