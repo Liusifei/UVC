@@ -34,7 +34,8 @@ def save_vis(pred, gt2, gt1, out_dir, gt_grey=False, prefix=0):
 		im_gt1 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 
 		im = np.concatenate((im_gt1, im_gt2, im_pred), axis = 1)
-		cv2.imwrite(os.path.join(out_dir, "{:02d}{:02d}.png".format(prefix,cnt)), im)
+		print(out_dir, "{:02d}{:02d}.png".format(prefix, cnt))
+		cv2.imwrite(join(out_dir, "{:02d}{:02d}.png".format(prefix, cnt)), im)
 
 def save_vis_ae(pred, gt, savepath):
 	b = pred.size(0)
@@ -42,7 +43,6 @@ def save_vis_ae(pred, gt, savepath):
 		im = pred[cnt].cpu().detach() * 128 + 128
 		im = im.numpy().transpose(1,2,0)
 		im_pred = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
-		#im_pred = np.clip(im_bgr, 0, 255)
 
 		im = gt[cnt].cpu().detach() * 128 + 128
 		im = im.numpy().transpose(1,2,0)

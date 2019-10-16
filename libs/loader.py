@@ -64,6 +64,7 @@ def video_frame_counter(video_path):
 
 
 class VidListv1(torch.utils.data.Dataset):
+	# for warm up, random crop both
 	def __init__(self, video_path, list_path, patch_size, rotate = 10, scale=1.2, is_train=True, moreaug= True):
 		super(VidListv1, self).__init__()
 		self.data_dir = video_path
@@ -109,6 +110,7 @@ class VidListv1(torch.utils.data.Dataset):
 
 
 class VidListv2(torch.utils.data.Dataset):
+	# for localization, random crop frame1
 	def __init__(self, video_path, list_path, patch_size, window_len, rotate = 10, scale = 1.2, full_size = 640, is_train=True):
 		super(VidListv2, self).__init__()
 		self.data_dir = video_path
@@ -117,8 +119,8 @@ class VidListv2(torch.utils.data.Dataset):
 		normalize = transforms.Normalize(mean = (128, 128, 128), std = (128, 128, 128))
 		self.transforms1 = transforms.Compose([
 						   transforms.RandomRotate(rotate),
-						   transforms.RandomScale(scale),
-						   # transforms.ResizeandPad(full_size),
+						   # transforms.RandomScale(scale),
+						   transforms.ResizeandPad(full_size),
 						   transforms.RandomCrop(patch_size),
 						   transforms.ToTensor(),
 						   normalize])			
@@ -140,7 +142,6 @@ class VidListv2(torch.utils.data.Dataset):
 				break
 
 		pair_ = framepair_loader(video_, 0, frame_end)
-
 		data1 = list(self.transforms1(*pair_))
 		data2 = list(self.transforms2(*pair_))
 		if self.window_len == 2:
@@ -154,9 +155,10 @@ class VidListv2(torch.utils.data.Dataset):
 
 	def read_list(self):
 		path = join(self.list_path)
+		root = path.partition("Kinetices/")[0]
 		if not exists(path):
 			raise Exception("{} does not exist in kinet_dataset.py.".format(path))
-		self.list = [line.strip() for line in open(path, 'r')]
+		self.list = [line.replace("/Data/", root).strip() for line in open(path, 'r')]
 
 
 
