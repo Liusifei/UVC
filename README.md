@@ -26,7 +26,7 @@ If you use our code in your research, please use the following BibTex:
 # Test on JHMDB
 First propagate pose:
 ```
-python test_jhmdb.py --use_softmax True --use_l2norm True --evaluate --topk_vis 20 --sigma 0.5 --cropSize 320 --cropSize2 80
+python test_jhmdb.py --evaluate --topk_vis 20 --sigma 0.5 --cropSize 320
 ```
 Then test PCK by:
 ```
