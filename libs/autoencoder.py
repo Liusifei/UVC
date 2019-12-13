@@ -4,7 +4,7 @@ from torchvision.models import vgg16
 from torch.autograd import Variable
 from collections import OrderedDict
 import torch.nn.functional as F
-from .resnet import resnet18, resnet50
+from .resnet import resnet18
 
 class encoder3(nn.Module):
     def __init__(self, reduce = False):
@@ -141,11 +141,11 @@ class decoder3(nn.Module):
         out = self.reflecPad11(out)
         out = self.conv11(out)
         if not self.cls:
-            out = torch.tanh(out)
+            out = F.tanh(out)
         return out
 
 
-def encoder_res18(pretrained = True, uselayer=3):
+def encoder_res18(pretrained = False, uselayer=3):
     """Constructs a ResNet-18 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -153,5 +153,5 @@ def encoder_res18(pretrained = True, uselayer=3):
     model = resnet18(uselayer=uselayer)
     if pretrained:
         print("Using pretrianed ResNet18 as guide.")
-        model.load_state_dict(torch.load("ae_models/resnet18-5c106cde.pth"), strict = False)
+        model.load_state_dict(torch.load("resnet18-5c106cde.pth"), strict = False)
     return model
