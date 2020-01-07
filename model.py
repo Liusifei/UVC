@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from libs.net_utils import NLM, NLM_dot, NLM_woSoft
 from torchvision.models import resnet18
-from autoencoder import encoder3, decoder3, encoder_res18, encoder_res50
+from libs.autoencoder import encoder3, decoder3, encoder_res18, encoder_res50
 from torch.utils.serialization import load_lua
 from libs.utils import *
 

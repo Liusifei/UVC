@@ -32,8 +32,8 @@ def parse_args():
 	# file/folder pathes
 	parser.add_argument("--videoRoot", type=str, default="/Data2/Kinetices/compress/train_256/", help='train video path')
 	parser.add_argument("--videoList", type=str, default="/Data2/Kinetices/compress/train.txt", help='train video list (after "train_256")')
-	parser.add_argument("--encoder_dir",type=str, default='ae_small/encoder_single_gpu.pth', help="pretrained encoder")
-	parser.add_argument("--decoder_dir",type=str, default='ae_small/decoder_single_gpu.pth', help="pretrained decoder")
+	parser.add_argument("--encoder_dir",type=str, default='weights/encoder_single_gpu.pth', help="pretrained encoder")
+	parser.add_argument("--decoder_dir",type=str, default='weights/decoder_single_gpu.pth', help="pretrained decoder")
 	parser.add_argument('--resume', type=str, default='', metavar='PATH', help='path to latest checkpoint (default: none)')
 	parser.add_argument("-c","--savedir",type=str,default="match_track_comb/",help='checkpoints path')
 	parser.add_argument("--Resnet", type=str, default="r18", help="choose from r18 or r50")
