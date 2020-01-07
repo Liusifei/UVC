@@ -243,7 +243,6 @@ def train_iter(args, loader, model, closs, optimizer, epoch, best_loss):
 			if(i % args.log_interval == 0):
 				save_vis(color2_est, frame2_var, frame1_var, frame2_var, args.savepatch)
 		else:
-			# print("input: ", frame1_var.size(), frame2_var.size())
 			output = forward(frame1_var, frame2_var, model, warm_up=False, patch_size = args.patch_size)
 			color2_est = output[0]
 			aff = output[1]
