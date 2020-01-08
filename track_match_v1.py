@@ -26,6 +26,8 @@ logging.basicConfig(format=FORMAT)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+############################## helper functions ##############################
+
 def parse_args():
 	parser = argparse.ArgumentParser(description='')
 

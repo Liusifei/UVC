@@ -159,31 +159,3 @@ class VidListv2(torch.utils.data.Dataset):
 		if not exists(path):
 			raise Exception("{} does not exist in kinet_dataset.py.".format(path))
 		self.list = [line.replace("/Data/", root).strip() for line in open(path, 'r')]
-
-
-
-if __name__ == '__main__':
-	normalize = transforms.Normalize(mean = (128, 128, 128),
-									 std = (128, 128, 128))
-	t = []
-	t.extend([transforms.RandomCrop(256),
-			  transforms.RandomHorizontalFlip(),
-			  transforms.ToTensor(),
-			  normalize])
-	dataset_train = VidList('/home/xtli/DATA/compress/train_256/',
-							'/home/xtli/DATA/compress/train.txt',
-							transforms.Compose(t), window_len=2)
-
-	train_loader = torch.utils.data.DataLoader(dataset_train,
-											   batch_size = 16,
-											   shuffle = True,
-											   num_workers=8,
-											   drop_last=True)
-
-	start_time = time.time()
-	for i, (frames) in enumerate(train_loader):
-		print(i)
-		if(i >= 1000):
-			break
-	end_time = time.time()
-	print((end_time - start_time) / 1000)
