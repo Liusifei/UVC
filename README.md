@@ -65,19 +65,20 @@ python test_with_track.py -d /workspace/DAVIS/ -s 480
 ```
 Similar parameters as `test.py`, please see the `test_with_track.py` for details.
 
-# Testing on VIP
+# Testing on the VIP dataset
 
-To test on VIP, please run the following command with your own dataset path:
-
-```
-python test_mask_vip.py -o results/VIP/category/ --scale_size 560 560 --pre_num 1 --root /media/xtli/eb0943df-a3fc-4ae2-a6e5-021cfdcfec3d/home/xtli/DATA/VIP/VIP_Fine/Images/ --val_txt /media/xtli/eb0943df-a3fc-4ae2-a6e5-021cfdcfec3d/home/xtli/DATA/VIP/VIP_Fine/lists/val_videos.txt -c weights/checkpoint_latest.pth.tar 
-```
-
-and 
+To test on VIP, please run the following command with your own VIP path:
 
 ```
-python eval_vip.py
+python test_mask_vip.py -o results/VIP/category/ --scale_size 560 560 --pre_num 1 -d /DATA/VIP/VIP_Fine/Images/ --val_txt /DATA/VIP/VIP_Fine/lists/val_videos.txt -c weights/checkpoint_latest.pth.tar
+```
+and then:
+```
+python eval_vip.py -g DATA/VIP/VIP_Fine/Annotations/Category_ids/ -p results/VIP/category/
 ````
+
+# Testing on the JHMDB dataset
+Please check out [this](https://github.com/Liusifei/UVC/tree/jhmdb) branch. The code is borrowed from [TimeCycle](https://github.com/xiaolonw/TimeCycle).
 
 # Training on Kinetics
 

@@ -19,9 +19,6 @@ color_platte = np.array(color_platte)
 
 ############################# HELPER FUNCTIONS ########################
 class BBox():
-    """
-    bounding box class
-    """
     def __init__(self, left, right, top, bottom, margin, h, w):
         if(margin > 0):
             bb_w = float(right - left)
@@ -32,10 +29,10 @@ class BBox():
             right = right + margin_w
             top = top - margin_h
             bottom = bottom + margin_h
-        self.left = max(math.floor(left), 0)
-        self.right = min(math.ceil(right), w)
-        self.top = max(math.floor(top), 0)
-        self.bottom = min(math.ceil(bottom), h)
+        self.left = max(int(left), 0)
+        self.right = min(int(right), w)
+        self.top = max(int(top), 0)
+        self.bottom = min(int(bottom), h)
 
     def print(self):
         print("Left: {:n}, Right:{:n}, Top:{:n}, Bottom:{:n}".format(self.left, self.right, self.top, self.bottom))
@@ -60,9 +57,7 @@ class BBox():
 
 def to_one_hot(y_tensor, n_dims=9):
     _,h,w = y_tensor.size()
-    """
-    Take integer y (tensor or variable) with n dims and convert it to 1-hot representation with n+1 dims.
-    """
+    """ Take integer y (tensor or variable) with n dims and convert it to 1-hot representation with n+1 dims. """
     y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
     n_dims = n_dims if n_dims is not None else int(torch.max(y_tensor)) + 1
     y_one_hot = torch.zeros(y_tensor.size()[0], n_dims).scatter_(1, y_tensor, 1)
@@ -102,17 +97,32 @@ def seg2bbox_v2(seg, bbox_pre):
     bbox[0].upscale(0.125)
     _, seg_int = torch.max(seg, dim=0)
     for cnt in range(1,c): # rule out background label
+        #seg_cnt = seg[cnt]
         seg_cnt = (seg_int == cnt) * 1
         # x * 2
         fg_idx = seg_cnt.nonzero().float()
 
-        if(fg_idx.numel() > 0 and (bbox_pre[cnt] is not None)):
+        if(fg_idx.numel() > 0):
+            #seg_vis = seg_cnt.unsqueeze(0)
             fg_idx = torch.flip(fg_idx, (0,1))
+            #im = torch.cat((seg_vis, seg_vis, seg_vis), dim=0).permute(1,2,0).numpy()
+            #im = im * 255
 
             bbox_tmp = copy.deepcopy(bbox_pre[cnt])
             bbox_tmp.upscale(8)
+            #im = draw_bbox(im, bbox_tmp, (0,255,0))
             bbox[cnt] = coords2bbox_scale(fg_idx, h, w, bbox_tmp, margin=0.6, bandwidth=20)
 
+            #vis = draw_bbox(im, bbox[cnt], (0,0,255))
+
+            #cv2.imwrite('vis.png',vis)
+            #center = mean_shift_center(fg_idx.unsqueeze(0))
+            #left = fg_idx[:,1].min()
+            #right = fg_idx[:,1].max()
+            #top = fg_idx[:,0].min()
+            #bottom = fg_idx[:,0].max()
+
+            #bbox[cnt] = BBox(left, right, top, bottom, 0.4, h, w)
             bbox[cnt].upscale(0.125)
         else:
             bbox[cnt] = None
@@ -271,7 +281,11 @@ def clean_seg(seg, bbox, threshold):
             fgs[cnt] = fg[:,[1,0]].float()
         else:
             fgs[cnt] = None
+    #center_h = (bbox[1].top  + bbox[1].bottom)/2
+    #center_w = (bbox[1].left + bbox[1].right)/2
+    #scatter_point(fgs[1], 'before.png', w, h, torch.Tensor([center_w, center_h]))
     fgs = clean_coords(fgs, bbox, threshold)
+    #scatter_point(fgs[1], 'after.png', w, h, torch.Tensor([center_w, center_h]))
     seg_new = torch.zeros(seg.size())
     for cnt, fg in fgs.items():
         if(fg is not None):
@@ -309,6 +323,8 @@ def coord2bbox(bbox_pre, coord, h, w, adaptive=False):
 
     if adaptive:
         center = torch.mean(coord, dim = 0)
+        #bb_height = torch.mean(torch.abs(coord[:,1] - center[1]), dim = 0) * 8
+        #bb_width = torch.mean(torch.abs(coord[:,0] - center[0]), dim = 0) * 8
         dis_h = coord[:,1] - center[1]
         dis_w = coord[:,0] - center[0]
 
@@ -317,6 +333,8 @@ def coord2bbox(bbox_pre, coord, h, w, adaptive=False):
 
         dis_w = torch.mean(dis_w * dis_w, dim = 0)
         bb_width = (dis_w ** 0.5) * 8
+        #bb_height = coord[:,1].max() - coord[:,1].min()
+        #bb_width  = coord[:,0].max() - coord[:,0].min()
 
         # the adaptive method is sentitive to outliers, let's assume there's no dramatical change within
         # short range, so the height should not grow larger than 1.2 times height in previous frame
@@ -367,6 +385,14 @@ def scatter_point(coord, name, w, h, center=None):
     ax.axis((0,w,0,h))
     ax.scatter(coord[:,0], h - coord[:,1])
     ax.scatter(center[0], h - center[1], marker='^')
+
+    """
+    for cnt in range(3):
+        x = coord[idx_[cnt],0]
+        y = h - coord[idx_[cnt],1]
+        ax.scatter(x, y, marker='o', c='r')
+        ax.annotate("{:2f}".format(dis[idx_[cnt]].numpy()), (x, y))
+    """
 
     plt.savefig(name)
     plt.clf()
@@ -422,6 +448,7 @@ def match_ref_tar(F_ref, F_tar, seg_ref, temp):
     grid = create_grid(F_ref.unsqueeze(0).size()).squeeze()
     grid[:,:,0] = (grid[:,:,0]+1)/2 * w
     grid[:,:,1] = (grid[:,:,1]+1)/2 * h
+    # grid_flat: (h * w) * 2
     grid_flat = grid.view(-1,2)
 
     for cnt in range(seg_ref.size(0)):
@@ -439,7 +466,9 @@ def match_ref_tar(F_ref, F_tar, seg_ref, temp):
             F_ref_cnt_flat = F_ref_flat
         aff = torch.mm(F_ref_cnt_flat.permute(1,0), F_tar_flat)
         aff = torch.nn.functional.softmax(aff*temp, dim = 1)
+        # coord of this patch in next frame: (hh*ww) * 2
         coord = torch.mm(aff, grid_flat)
+        #coords.append(coord)
         coords[cnt] = coord
     return coords
 
@@ -461,6 +490,7 @@ def weighted_center(coords, center):
     dis_y = np.sqrt(np.power(coords[:,:,1] - center[:,:,1], 2))
     weight_y = 1 / dis_y
     weight_y = weight_y / np.sum(weight_y)
+    #weight_y = dis_y / np.sum(dis_y)
 
     new_x = np.sum(weight_x * coords[:,:,0])
     new_y = np.sum(weight_y * coords[:,:,1])
@@ -521,35 +551,56 @@ def mean_shift_center(coords, bandwidth=20):
         else:
             prev_center = copy.deepcopy(new_center)
 
-def coords2bbox_scale(coords, h_tar, w_tar, bbox_pre, margin, bandwidth, log=False):
+def coords2bbox_scale(coords, h_tar, w_tar, bbox_pre, margin, bandwidth):
     """
     INPUTS:
      - coords: coordinates of pixels in the next frame
      - h_tar: target image height
      - w_tar: target image widthg
     """
+    #b = coords.size(0)
     b = 1
+    #center = torch.mean(coords, dim=0) # b * 2
+    #center = center.view(1,2)
     center = mean_shift_center(coords.numpy(), bandwidth)
-
     center_repeat = center.repeat(coords.size(0),1)
 
     dis_x = torch.sqrt(torch.pow(coords[:,0] - center_repeat[:,0], 2))
     dis_x = torch.mean(dis_x, dim=0).detach()
     dis_y = torch.sqrt(torch.pow(coords[:,1] - center_repeat[:,1], 2))
     dis_y = torch.mean(dis_y, dim=0).detach()
+    #dis_x = (bbox_pre.right - bbox_pre.left)/2.0
+    #dis_y = (bbox_pre.bottom - bbox_pre.top)/2.0
 
     left = (center[:,0] - dis_x*2).view(b,1)
     right = (center[:,0] + dis_x*2).view(b,1)
     top = (center[:,1] - dis_y*2).view(b,1)
     bottom = (center[:,1] + dis_y*2).view(b,1)
+    #left = (center[:,1] - dis_x).view(b,1)
+    #right = (center[:,1] + dis_x).view(b,1)
+    #top = (center[:,0] - dis_y).view(b,1)
+    #bottom = (center[:,0] + dis_y).view(b,1)
 
-
-    bbox_tar_ = BBox(left   = max(left, 0),
-                     right  = min(right, w_tar),
-                     top    = max(top, 0),
-                     bottom = min(bottom, h_tar),
+    bbox_tar_ = BBox(left   = int(max(left, 0)),
+                     right  = int(min(right, w_tar)),
+                     top    = int(max(top, 0)),
+                     bottom = int(min(bottom, h_tar)),
                      margin = margin, h = h_tar, w = w_tar)
 
+    # the new bbox should fall into a certain range of previous bbox
+    """
+    bbox_tar_.left = int(max((bbox_pre.left + 1) * 0.9, bbox_tar_.left))
+    bbox_tar_.left = int(min((bbox_pre.left + 1) * 1.1, bbox_tar_.left))
+
+    bbox_tar_.right = int(max(bbox_pre.right * 0.9, bbox_tar_.right))
+    bbox_tar_.right = int(min(bbox_pre.right * 1.1, bbox_tar_.right))
+
+    bbox_tar_.top = int(max((bbox_pre.top + 1) * 0.9, bbox_tar_.top))
+    bbox_tar_.top = int(min((bbox_pre.top + 1) * 1.1, bbox_tar_.top))
+
+    bbox_tar_.bottom = int(max(bbox_pre.bottom * 0.9, bbox_tar_.bottom))
+    bbox_tar_.bottom = int(min(bbox_pre.bottom * 1.1, bbox_tar_.bottom))
+    """
 
     return bbox_tar_
 
@@ -593,16 +644,18 @@ def bbox_in_tar_scale(coords_tar, bbox_ref, h, w):
                 continue
             coord = coord.cpu()
 
-            bbox_tar_ = coords2bbox_scale(coord, h, w, bbox_cnt, margin=1, bandwidth=5, log=(cnt==3))
+            bbox_tar_ = coords2bbox_scale(coord, h, w, bbox_cnt, margin=1, bandwidth=5)
+            #coord = coord_wrt_bbox(coord, bbox_tar_)
+            #new_coords[cnt] = coord
+            #bbox_tar_ = coords2bbox_scale(coord, h, w, bbox_tar_, margin=0.6, bandwidth=5)
         else:
             bbox_tar_ = None
 
         bbox_tar[cnt] = bbox_tar_
-    return bbox_tar
+    return bbox_tar, coords_tar
 
-############################# depreciated code, keep for safety ########################
-"""
 def bbox_in_tar(coords_tar, bbox_ref, h, w):
+    """
     INPUTS:
      - coords_tar: foreground coordinates in the target frame
      - bbox_ref: bboxs in the reference frame
@@ -610,7 +663,9 @@ def bbox_in_tar(coords_tar, bbox_ref, h, w):
      - calculate bbox in the next frame w.r.t pixels coordinates
     RETURNS:
      - each bbox in the tar frame
+    """
     bbox_tar = {}
+    #for cnt in range(len(bbox_ref)):
     for cnt, bbox_cnt in bbox_ref.items():
         if(cnt == 0):
             bbox_tar_ = BBox(left = 0,
@@ -624,6 +679,7 @@ def bbox_in_tar(coords_tar, bbox_ref, h, w):
             coord = coords_tar[cnt]
             center_h = (bbox_cnt.top + bbox_cnt.bottom) / 2
             center_w = (bbox_cnt.left + bbox_cnt.right) / 2
+            #coord = clean_coord(coord, center=torch.Tensor([center_w, center_h]),keep_ratio=1.0)
             if(coord is None):
                 continue
             coord = coord.cpu()
@@ -636,6 +692,7 @@ def bbox_in_tar(coords_tar, bbox_ref, h, w):
     return bbox_tar
 
 def bbox_in_tar_v2(coords_tar, bbox_ref, h, w, seg_pre):
+    """
     INPUTS:
      - coords_tar: foreground coordinates in the target frame
      - bbox_ref: bboxs in the reference frame
@@ -645,6 +702,7 @@ def bbox_in_tar_v2(coords_tar, bbox_ref, h, w, seg_pre):
      - each bbox in the tar frame
     VERSION NOTE:
      - include scaling modeling
+    """
     bbox_tar = {}
     for cnt, bbox_cnt in bbox_ref.items():
         # for each channel
@@ -669,11 +727,13 @@ def bbox_in_tar_v2(coords_tar, bbox_ref, h, w, seg_pre):
     return bbox_tar
 
 def recoginition(F_ref, F_tar, bbox_ref, bbox_tar, seg_ref, temp):
+    """
     - F_ref: feature of reference frame
     - F_tar: feature of target frame
     - bbox_ref: bboxes of reference frame
     - bbox_tar: bboxes of target frame
     - seg_ref: segmentation of reference frame
+    """
     c, h, w = F_tar.size()
     seg_pred = torch.zeros(seg_ref.size())
     #for cnt,(br, bt) in enumerate(zip(bbox_ref, bbox_tar)):
@@ -695,10 +755,12 @@ def recoginition(F_ref, F_tar, bbox_ref, bbox_tar, seg_ref, temp):
         # transfer segmentation from patch1 to patch2
         seg_ref_box = seg_cnt[br.top:br.bottom, br.left:br.right]
         aff = aff.cpu()
+        """
         if(cnt == 0):
             seg_ref_box_flat = seg_ref_box.contiguous().view(-1)
             seg_tar_box = torch.mm(seg_ref_box_flat.unsqueeze(0), aff).squeeze()
         else:
+        """
         seg_ref_box_flat = seg_ref_box.contiguous().view(-1)
         seg_tar_box = torch.mm(seg_ref_box_flat.unsqueeze(0), aff).squeeze()
         #seg_tar_box = transform_topk(aff.unsqueeze(0), seg_ref_box.contiguous().unsqueeze(0).unsqueeze(0), 20)
@@ -708,10 +770,12 @@ def recoginition(F_ref, F_tar, bbox_ref, bbox_tar, seg_ref, temp):
     return seg_pred
 
 def bbox_next_frame_v2(F_first, F_pre, seg_pre, seg_first, F_tar, bbox_first, bbox_pre, temp, direct=False):
+    """
     INPUTS:
      - direct: rec|direct,
        - if False, use previous frame to locate bbox
        - if True, use first frame to locate bbox
+    """
     F_first, F_pre, seg_pre, seg_first, F_tar = squeeze_all(F_first, F_pre, seg_pre, seg_first, F_tar)
     c, h, w = F_first.size()
     if not direct:
@@ -725,8 +789,10 @@ def bbox_next_frame_v2(F_first, F_pre, seg_pre, seg_first, F_tar, bbox_first, bb
     return seg_pred.unsqueeze(0)
 
 def bbox_next_frame_v3(F_first, F_pre, seg_pre, seg_first, F_tar, bbox_first, bbox_pre, temp, name):
+    """
     METHOD: combining tracking & direct recognition, calculate bbox in target frame
             using both first frame and previous frame.
+    """
     F_first, F_pre, seg_pre, seg_first, F_tar = squeeze_all(F_first, F_pre, seg_pre, seg_first, F_tar)
     c, h, w = F_first.size()
 
@@ -758,9 +824,11 @@ def bbox_next_frame_v3(F_first, F_pre, seg_pre, seg_first, F_tar, bbox_first, bb
 
 def bbox_next_frame_v4(F_first, F_pre, seg_pre, seg_first, F_tar, bbox_first,
                        bbox_pre, temp):
+    """
     METHOD: combining tracking & direct recognition, calculate bbox in target frame
             using both first frame and previous frame.
     Version Note: include bounding box scaling
+    """
     F_first, F_pre, seg_pre, seg_first, F_tar = squeeze_all(F_first, F_pre, seg_pre, seg_first, F_tar)
     c, h, w = F_first.size()
 
@@ -791,7 +859,7 @@ def bbox_next_frame_v4(F_first, F_pre, seg_pre, seg_first, F_tar, bbox_first,
     seg_post = post_process_seg(seg_pred.unsqueeze(0))
     return seg_pred, seg_post, bbox_tar
 
-"""
+############################# depreciated code, keep for safety ########################
 """
 def bbox_next_frame(F_ref, seg_ref, F_tar, bbox, temp):
     # b * h * w * 2

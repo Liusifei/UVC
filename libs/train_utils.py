@@ -4,38 +4,67 @@ import torch
 import shutil
 # import visdom
 import numpy as np
+from libs.vis_utils import draw_certainty_map, flow_to_rgb, prepare_img
 from os.path import join
 
-def save_vis(pred, gt2, gt1, out_dir, gt_grey=False, prefix=0):
+
+def draw_bbox(img,bbox):
 	"""
 	INPUTS:
-	 - pred: predicted Lab image, a 3xhxw tensor
-	 - gt2: second GT frame, a 3xhxw tensor
+	 - segmentation, h * w * 3 numpy array
+	 - bbox: left, right, top, bottom
+	OUTPUT:
+	 - image with a drawn bbox
+	"""
+	# print("bbox: ", bbox)
+	pt1 = (int(bbox[0]),int(bbox[2]))
+	pt2 = (int(bbox[1]),int(bbox[3]))
+	color = np.array([51,255,255], dtype=np.uint8)
+	c = tuple(map(int, color))
+	img = cv2.rectangle(img, pt1, pt2, c, 5)
+	return img
+
+
+def save_vis(pred2, gt2, frame1, frame2, savedir, new_c=None):
+	"""
+	INPUTS:
+	 - pred: predicted patch, a 3xpatch_sizexpatch_size tensor
+	 - gt2: GT patch, a 3xhxw tensor
 	 - gt1: first GT frame, a 3xhxw tensor
-	 - out_dir: output image save path
 	 - gt_grey: whether to use ground trught L channel in predicted image
 	"""
-	b = pred.size(0)
-	pred = pred * 128 + 128
-	gt1 = gt1 * 128 + 128
+	b = pred2.size(0)
+	pred2 = pred2 * 128 + 128
 	gt2 = gt2 * 128 + 128
+	frame1 = frame1 * 128 + 128
+	frame2 = frame2 * 128 + 128
 
-	if(gt_grey):
-		pred[:,0,:,:] = gt2[:,0,:,:]
+
 	for cnt in range(b):
-		im = pred[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
+		im = pred2[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
 		im_bgr = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 		im_pred = np.clip(im_bgr, 0, 255)
 
 		im = gt2[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
 		im_gt2 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 
-		im = gt1[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
-		im_gt1 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
+		im = frame1[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
+		im_frame1 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
 
-		im = np.concatenate((im_gt1, im_gt2, im_pred), axis = 1)
-		print(out_dir, "{:02d}{:02d}.png".format(prefix, cnt))
-		cv2.imwrite(join(out_dir, "{:02d}{:02d}.png".format(prefix, cnt)), im)
+		im = frame2[cnt].cpu().detach().numpy().transpose( 1, 2, 0)
+		im_frame2 = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
+		
+		if new_c is not None:
+			new_bbox = new_c[cnt]
+			im_frame2 = draw_bbox(im_frame2,new_bbox)
+			im_frame2 = cv2.resize(im_frame2, (im_frame1.shape[0],im_frame1.shape[1]))
+			
+			im = np.concatenate((im_frame1, im_frame2), axis = 1)
+			cv2.imwrite(os.path.join(savedir, "{:02d}_loc.png".format(cnt)), im)
+
+		im = np.concatenate((im_frame1, im_pred, im_gt2), axis = 1)
+		cv2.imwrite(os.path.join(savedir, "{:02d}_patch.png".format(cnt)), im)
+		
 
 def save_vis_ae(pred, gt, savepath):
 	b = pred.size(0)
@@ -43,6 +72,7 @@ def save_vis_ae(pred, gt, savepath):
 		im = pred[cnt].cpu().detach() * 128 + 128
 		im = im.numpy().transpose(1,2,0)
 		im_pred = cv2.cvtColor(np.array(im, dtype = np.uint8), cv2.COLOR_LAB2BGR)
+		#im_pred = np.clip(im_bgr, 0, 255)
 
 		im = gt[cnt].cpu().detach() * 128 + 128
 		im = im.numpy().transpose(1,2,0)
@@ -79,32 +109,7 @@ def sample_patch(b,h,w,patch_size):
 	right = left + patch_size
 	bottom = top + patch_size
 	return torch.Tensor([left, right, top, bottom]).view(1,4).repeat(b,1).cuda()
-
-
-def diff_crop(F, x1, y1, x2, y2, ph, pw):
-	"""
-	Differatiable cropping
-	INPUTS:
-	 - F: frame feature
-	 - x1,y1,x2,y2: top left and bottom right points of the patch
-	 - theta is defined as :
-						a b c
-						d e f
-	"""
-	bs, ch, h, w = F.size()
-	a = ((x2-x1)/w).view(bs,1,1)
-	b = torch.zeros(a.size()).cuda()
-	c = (-1+(x1+x2)/w).view(bs,1,1)
-	d = torch.zeros(a.size()).cuda()
-	e = ((y2-y1)/h).view(bs,1,1)
-	f = (-1+(y2+y1)/h).view(bs,1,1)
-	theta_row1 = torch.cat((a,b,c),dim=2)
-	theta_row2 = torch.cat((d,e,f),dim=2)
-	theta = torch.cat((theta_row1, theta_row2),dim=1).cuda()
-	size = torch.Size((bs,ch,pw,ph))
-	grid = FUNC.affine_grid(theta, size)
-	patch = FUNC.grid_sample(F,grid)
-	return patch
+    
 
 def log_current(epoch, loss_ave, best_loss, filename = "log_current.txt", savedir="models"):
     file = join(savedir, filename)
@@ -112,19 +117,3 @@ def log_current(epoch, loss_ave, best_loss, filename = "log_current.txt", savedi
         print("epoch: {}".format(epoch), file=text_file)
         print("best_loss: {}".format(best_loss), file=text_file)
         print("current_loss: {}".format(loss_ave), file=text_file)
-
-def print_options(opt):
-	message = ''
-	message += '----------------- Options ---------------\n'
-	for k, v in sorted(vars(opt).items()):
-	    comment = ''
-	    message += '{:>25}: {:<30}{}\n'.format(str(k), str(v), comment)
-	message += '----------------- End -------------------'
-	print(message)
-
-	# save to the disk
-	expr_dir = os.path.join(opt.savedir)
-	file_name = os.path.join(expr_dir, 'opt.txt')
-	with open(file_name, 'wt') as opt_file:
-		opt_file.write(message)
-		opt_file.write('\n')

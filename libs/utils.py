@@ -176,3 +176,30 @@ def center2bbox(center, patch_size, h, w):
 
     new_center = torch.cat((new_l,new_r,new_t,new_b),dim=1)
     return new_center
+
+
+def coords2bbox(coords, patch_size, h_tar, w_tar):
+    """
+    INPUTS:
+     - coords: coordinates of pixels in the next frame
+     - patch_size: patch size
+     - h_tar: target image height
+     - w_tar: target image widthg
+    """
+    b = coords.size(0)
+    center = torch.mean(coords, dim=1) # b * 2
+    center_repeat = center.unsqueeze(1).repeat(1,coords.size(1),1)
+    dis_x = torch.sqrt(torch.pow(coords[:,:,0] - center_repeat[:,:,0], 2))
+    dis_x = torch.mean(dis_x, dim=1).detach()
+    dis_y = torch.sqrt(torch.pow(coords[:,:,1] - center_repeat[:,:,1], 2))
+    dis_y = torch.mean(dis_y, dim=1).detach()
+    left = (center[:,0] - dis_x*2).view(b,1)
+    left[left < 0] = 0
+    right = (center[:,0] + dis_x*2).view(b,1)
+    right[right > w_tar] = w_tar
+    top = (center[:,1] - dis_y*2).view(b,1)
+    top[top < 0] = 0
+    bottom = (center[:,1] + dis_y*2).view(b,1)
+    bottom[bottom > h_tar] = h_tar
+    new_center = torch.cat((left,right,top,bottom),dim=1)
+    return new_center

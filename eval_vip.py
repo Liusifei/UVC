@@ -1,4 +1,8 @@
+"""
+Copyright: https://github.com/xiaolonw/TimeCycle
+"""
 import os
+import argparse
 import numpy as np
 from PIL import Image
 n_cl = 20
@@ -11,8 +15,15 @@ CLASSES = ['background', 'hat', 'hair', 'sun-glasses', 'upper-clothes', 'dress',
 # PRE_DIR = '/scratch/xiaolonw/VIP/results/'
 #PRE_DIR = '/scratch/xiaolonw/VIP_results_mask_kin+vlog/results/'
 
-GT_DIR = '/media/xtli/eb0943df-a3fc-4ae2-a6e5-021cfdcfec3d/home/xtli/DATA/VIP/VIP_Fine/Annotations/Category_ids/'
-PRE_DIR = '/home/xtli/Dropbox/Neurips2019/results/VIP/category//'
+GT_DIR = 'DATA/VIP/VIP_Fine/Annotations/Category_ids/'
+PRE_DIR = 'results/VIP/category/'
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-g", "--gt_dir", type=str, default=GT_DIR,
+                    help="ground truth path")
+parser.add_argument("-p", "--pre_dir", type=str, default=PRE_DIR,
+                    help="prediction path")
+args = parser.parse_args()
 
 def main():
     image_paths, label_paths = init_path()
@@ -37,30 +48,9 @@ def _get_voc_color_map(n=256):
         index_map['%d_%d_%d'%(r, g, b)] = i
     return color_map, index_map
 
-#
-# def init_path():
-#     image_dir = PRE_DIR
-#     label_dir = GT_DIR
-#
-#     file_names = []
-#     for vid in os.listdir(image_dir):
-#         for img in os.listdir(os.path.join(image_dir, vid, 'gray')):
-#             j = img.find('_')
-#             if img[:j] == 'global':
-#                 file_names.append([vid, img[j+1:-4]])
-#     print ("result of", image_dir)
-#
-#     image_paths = []
-#     label_paths = []
-#     for file_name in file_names:
-#         image_paths.append(os.path.join(image_dir, file_name[0], 'gray', 'global_'+file_name[1]+'.png'))
-#         label_paths.append(os.path.join(label_dir, file_name[0], file_name[1]+'.png'))
-#     return image_paths, label_paths
-
-
 def init_path():
-    image_dir = PRE_DIR
-    label_dir = GT_DIR
+    image_dir = args.pre_dir
+    label_dir = args.gt_dir
 
     file_names = []
     for vid in os.listdir(image_dir):

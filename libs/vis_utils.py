@@ -1,10 +1,9 @@
 import cv2
 import torch
 import numpy as np
-#import seaborn as sns
-from .model import transform
+import seaborn as sns
+from model import transform
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-import torchvision.utils as vutils
 
 UNKNOWN_FLOW_THRESH = 1e7
 SMALLFLOW = 0.0
@@ -24,7 +23,7 @@ def prepare_img(img):
     #cv2.imwrite(filename, img, [cv2.IMWRITE_PNG_COMPRESSION, 0])
     return img
 
-def flow_to_rgb(flow, mr = None):
+def flow_to_rgb(flow):
     """
     Convert flow into middlebury color code image
     :param flow: optical flow map
@@ -50,8 +49,6 @@ def flow_to_rgb(flow, mr = None):
 
     rad = np.sqrt(u ** 2 + v ** 2)
     maxrad = max(-1, np.max(rad))
-    if(mr is not None):
-        maxrad = mr
 
     #print "max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu,maxu, minv, maxv)
 
@@ -63,7 +60,7 @@ def flow_to_rgb(flow, mr = None):
     idx = np.repeat(idxUnknow[:, :, np.newaxis], 3, axis=2)
     img[idx] = 0
 
-    return np.float32(img) / 255.0, maxrad
+    return np.float32(img) / 255.0
 
 
 def compute_color(u, v):
@@ -196,7 +193,7 @@ def draw_certainty_map(map, normalize=False):
         # draw heat map
         ax = sns.heatmap(map, yticklabels=False, xticklabels=False, cbar=True)
     else:
-        ax = sns.heatmap(map, yticklabels=False, xticklabels=False, vmin=0.0, vmax=1.5, cbar=True)
+        ax = sns.heatmap(map, yticklabels=False, xticklabels=False, vmin=0.0, vmax=1.0, cbar=True)
     figure = ax.get_figure()
     width, height = figure.get_size_inches() * figure.get_dpi()
 

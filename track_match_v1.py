@@ -26,14 +26,16 @@ logging.basicConfig(format=FORMAT)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+############################## helper functions ##############################
+
 def parse_args():
 	parser = argparse.ArgumentParser(description='')
 
 	# file/folder pathes
 	parser.add_argument("--videoRoot", type=str, default="/Data2/Kinetices/compress/train_256/", help='train video path')
 	parser.add_argument("--videoList", type=str, default="/Data2/Kinetices/compress/train.txt", help='train video list (after "train_256")')
-	parser.add_argument("--encoder_dir",type=str, default='ae_small/encoder_single_gpu.pth', help="pretrained encoder")
-	parser.add_argument("--decoder_dir",type=str, default='ae_small/decoder_single_gpu.pth', help="pretrained decoder")
+	parser.add_argument("--encoder_dir",type=str, default='weights/encoder_single_gpu.pth', help="pretrained encoder")
+	parser.add_argument("--decoder_dir",type=str, default='weights/decoder_single_gpu.pth', help="pretrained decoder")
 	parser.add_argument('--resume', type=str, default='', metavar='PATH', help='path to latest checkpoint (default: none)')
 	parser.add_argument("-c","--savedir",type=str,default="match_track_comb/",help='checkpoints path')
 	parser.add_argument("--Resnet", type=str, default="r18", help="choose from r18 or r50")
@@ -243,7 +245,6 @@ def train_iter(args, loader, model, closs, optimizer, epoch, best_loss):
 			if(i % args.log_interval == 0):
 				save_vis(color2_est, frame2_var, frame1_var, frame2_var, args.savepatch)
 		else:
-			# print("input: ", frame1_var.size(), frame2_var.size())
 			output = forward(frame1_var, frame2_var, model, warm_up=False, patch_size = args.patch_size)
 			color2_est = output[0]
 			aff = output[1]

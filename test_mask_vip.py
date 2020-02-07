@@ -1,7 +1,3 @@
-"""
-Test NLM on segmentation mask recursively
-Use first frame with gt mask and preceding 7 frames
-"""
 import os
 import cv2
 import glob
@@ -25,26 +21,26 @@ from libs.model import Model_switchGTfixdot_swCC_Res as Model
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=1,
+                        help="batch size")
     parser.add_argument("-o","--out_dir",type=str,default="output/",
                         help='output path')
     parser.add_argument("--device", type=int, default=5,
                         help="0~4 for single GPU, 5 for dataparallel.")
-    parser.add_argument("-c","--checkpoint_dir",type=str,default="weights/track_Res18_256/checkpoint_latest.pth.tar",
+    parser.add_argument("-c","--checkpoint_dir",type=str,
+                        default="weights/track_Res18_256/checkpoint_latest.pth.tar",
                         help='checkpoints path')
     parser.add_argument('--scale_size', type=int, nargs='+',
                         help='scale size, either a single number for short edge, or a pair for height and width')
     parser.add_argument("--pre_num",type=int,default=7,
                         help='preceding frame numbers')
-    parser.add_argument("--no_rec",action="store_true",
-                        help='not using averaged result from preceding frames')
     parser.add_argument("--temp",type=float,default=1,
                         help='softmax temperature')
     parser.add_argument("--topk",type=int,default=5,
                         help='accumulate label from top k neighbors')
-    parser.add_argument("--root", type=str, default="",
+    parser.add_argument("-d", "--root", type=str, default="",
                         help='davis dataset path')
-    parser.add_argument("--val_txt", type=str, default="/home/xtli/DATA/DAVIS2017/ImageSets/2017/val.txt",
+    parser.add_argument("--val_txt", type=str, default="",
                         help='davis evaluation video list')
 
     print("Begin parser arguments.")
@@ -120,7 +116,6 @@ def forward(frame1, frame2, model, seg):
     output = model(frame1_gray, frame2_gray, frame1, frame2)
     aff = output[2]
 
-    #aff = aff.cpu()
     frame2_seg = transform_topk(aff,seg.cuda(),k=args.topk)
 
     return frame2_seg.cpu()
@@ -143,29 +138,24 @@ def test(model, frame_list, first_seg):
             frame_tar_acc = forward(frame1, frame_tar, model, first_seg)
 
             # previous 7 frames
-            if not args.no_rec:
-                tmp_queue = list(que.queue)
-                for pair in tmp_queue:
-                    framei = pair[0]
-                    segi = pair[1]
-                    frame_tar_est_i = forward(framei, frame_tar, model, segi)
-                    frame_tar_acc += frame_tar_est_i
-                frame_tar_avg = frame_tar_acc / (1 + len(tmp_queue))
-
-            else:
-                frame_tar_avg = frame_tar_acc
+            tmp_queue = list(que.queue)
+            for pair in tmp_queue:
+                framei = pair[0]
+                segi = pair[1]
+                frame_tar_est_i = forward(framei, frame_tar, model, segi)
+                frame_tar_acc += frame_tar_est_i
+            frame_tar_avg = frame_tar_acc / (1 + len(tmp_queue))
 
         frame_nm = frame_list[cnt].split('/')[-1].replace(".jpg",".png")
         out_path = os.path.join(video_folder,frame_nm)
 
-        if(not args.no_rec):
-            # pop out oldest frame if neccessary
-            # push current result into queue
-            if(que.qsize() == args.pre_num):
-                que.get()
-            seg = copy.deepcopy(frame_tar_avg)
-            frame, ori_h, ori_w = read_frame(frame_list[cnt], transforms)
-            que.put([frame,seg])
+        # pop out oldest frame if neccessary
+        # push current result into queue
+        if(que.qsize() == args.pre_num):
+            que.get()
+        seg = copy.deepcopy(frame_tar_avg)
+        frame, ori_h, ori_w = read_frame(frame_list[cnt], transforms)
+        que.put([frame,seg])
 
         # upsampling & argmax
         frame_tar_avg = torch.nn.functional.interpolate(frame_tar_avg,scale_factor=8,mode='bilinear')
@@ -174,10 +164,7 @@ def test(model, frame_list, first_seg):
 
         frame_tar_seg = frame_tar_seg.squeeze().numpy()
         frame_tar_seg = np.array(frame_tar_seg, dtype=np.uint8)
-        #frame_tar_seg = cv2.resize(frame_tar_seg, (ori_w, ori_h), cv2.INTER_NEAREST)
         frame_tar_seg = scipy.misc.imresize(frame_tar_seg, (ori_h,ori_w),"nearest",mode="F")
-        #scipy.misc.imsave(out_path, np.uint8(frame_tar_seg))
-        #davis.io.imwrite_indexed(out_path,np.uint8(frame_tar_seg))
         imwrite_indexed(out_path, np.uint8(frame_tar_seg))
 
 def to_one_hot(y_tensor, n_dims=None):
@@ -243,7 +230,6 @@ if(__name__ == '__main__'):
         print('[{:n}/{:n}] Begin to segment video {}.'.format(cnt,len(lines),video_nm))
 
         video_dir = os.path.join(args.root, video_nm)
-        #video_dir = line.split(' ')[0]
         frame_list = read_frame_list(video_dir)
         seg_dir = frame_list[0].replace("Images","Annotations/Category_ids")
         seg_dir = seg_dir.replace("jpg","png")
@@ -254,11 +240,10 @@ if(__name__ == '__main__'):
         video_folder = os.path.join(args.out_dir, video_nm)
         os.makedirs(video_folder, exist_ok = True)
 
-        #seg_vis = Image.open(seg_dir)
-        #seg_vis = np.array(seg_vis)
-        #out_path = os.path.join(video_folder, 'output_001.png')
-        #davis.io.imwrite_indexed(out_path,np.uint8(seg_vis))
-        #imwrite_indexed(out_path,np.uint8(seg_vis))
+        seg_vis = Image.open(seg_dir)
+        seg_vis = np.array(seg_vis)
+        out_path = os.path.join(video_folder, 'output_001.png')
+        imwrite_indexed(out_path,np.uint8(seg_vis))
 
         first_seg_nm = seg_dir.split('/')[-1]
         shutil.copy(seg_dir, os.path.join(video_folder,first_seg_nm))

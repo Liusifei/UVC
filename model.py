@@ -3,8 +3,7 @@ import torch
 import torch.nn as nn
 from libs.net_utils import NLM, NLM_dot, NLM_woSoft
 from torchvision.models import resnet18
-from autoencoder import encoder3, decoder3, encoder_res18, encoder_res50
-from torch.utils.serialization import load_lua
+from libs.autoencoder import encoder3, decoder3, encoder_res18, encoder_res50
 from libs.utils import *
 
 def transform(aff, frame1):
@@ -84,7 +83,7 @@ def coords2bbox(coords, patch_size, h_tar, w_tar):
 	new_center = torch.cat((left,right,top,bottom),dim=1)
 	return new_center
 
-	
+
 
 class track_match_comb(nn.Module):
 	def __init__(self, pretrained, encoder_dir = None, decoder_dir = None, temp=1, Resnet = "r18", color_switch=True, coord_switch=True):
@@ -120,7 +119,7 @@ class track_match_comb(nn.Module):
 		n, c, h_tar, w_tar = img_tar.size()
 		gray_ref = copy.deepcopy(img_ref[:,0].view(n,1,h_ref,w_ref).repeat(1,3,1,1))
 		gray_tar = copy.deepcopy(img_tar[:,0].view(n,1,h_tar,w_tar).repeat(1,3,1,1))
-		
+
 		gray_ref = (gray_ref + 1) / 2
 		gray_tar = (gray_tar + 1) / 2
 
@@ -138,10 +137,10 @@ class track_match_comb(nn.Module):
 			aff_norm = self.softmax(aff)
 			Fcolor2_est = transform(aff_norm, Fcolor1)
 			color2_est = self.decoder(Fcolor2_est)
-			
+
 			output.append(color2_est)
 			output.append(aff)
-				
+
 			if self.color_switch:
 				Fcolor2 = self.rgb_encoder(img_tar)
 				Fcolor1_est = transform(aff_norm.transpose(1,2), Fcolor2)
@@ -157,15 +156,15 @@ class track_match_comb(nn.Module):
 			# new_c = center2bbox(center, patch_size, h_tar, w_tar)
 			new_c = center2bbox(center, patch_size, Fgray2.size(2), Fgray2.size(3))
 			# print("center2bbox:", new_c, h_tar, w_tar)
-			
+
 			Fgray2_crop = diff_crop(Fgray2, new_c[:,0], new_c[:,2], new_c[:,1], new_c[:,3], patch_size[1], patch_size[0])
 			# print("HERE: ", Fgray2.size(), Fgray1.size(), Fgray2_crop.size())
-			
+
 			aff_p = self.nlm(Fgray1, Fgray2_crop)
 			aff_norm = self.softmax(aff_p * self.temp)
 			Fcolor2_est = transform(aff_norm, Fcolor1)
 			color2_est = self.decoder(Fcolor2_est)
-			
+
 			Fcolor2_full = self.rgb_encoder(img_tar)
 			Fcolor2_crop = diff_crop(Fcolor2_full, new_c[:,0], new_c[:,2], new_c[:,1], new_c[:,3], patch_size[1], patch_size[0])
 
@@ -252,4 +251,4 @@ class Model_switchGTfixdot_swCC_Res(nn.Module):
 		Fcolor1_est = transform(aff_norm.transpose(1,2), Fcolor2)
 		pred1 = self.decoder(Fcolor1_est)
 
-		return pred1, pred2, aff_norm, aff, Fgray1, Fgray2	
+		return pred1, pred2, aff_norm, aff, Fgray1, Fgray2
