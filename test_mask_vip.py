@@ -254,11 +254,11 @@ if(__name__ == '__main__'):
         video_folder = os.path.join(args.out_dir, video_nm)
         os.makedirs(video_folder, exist_ok = True)
 
-        seg_vis = Image.open(seg_dir)
-        seg_vis = np.array(seg_vis)
-        out_path = os.path.join(video_folder, 'output_001.png')
+        #seg_vis = Image.open(seg_dir)
+        #seg_vis = np.array(seg_vis)
+        #out_path = os.path.join(video_folder, 'output_001.png')
         #davis.io.imwrite_indexed(out_path,np.uint8(seg_vis))
-        imwrite_indexed(out_path,np.uint8(seg_vis))
+        #imwrite_indexed(out_path,np.uint8(seg_vis))
 
         first_seg_nm = seg_dir.split('/')[-1]
         shutil.copy(seg_dir, os.path.join(video_folder,first_seg_nm))
