@@ -65,6 +65,8 @@ python test_with_track.py -d /workspace/DAVIS/ -s 480
 ```
 Similar parameters as `test.py`, please see the `test_with_track.py` for details.
 
+# Testing on VIP
+
 To test on VIP, please run the following command with your own dataset path:
 
 ```
