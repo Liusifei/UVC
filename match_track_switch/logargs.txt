@@ -1,0 +1,36 @@
+track_match_v1.py --wepoch 10 --nepoch 30 -c match_track_switch --batchsize 40 --coord_switch 0 --lc 0.3
+videoRoot:/Data2/Kinetices/compress/train_256/
+videoList:/Data2/Kinetices/compress/train.txt
+encoder_dir:weights/encoder_single_gpu.pth
+decoder_dir:weights/decoder_single_gpu.pth
+resume:
+savedir:match_track_switch
+Resnet:r18
+pretrainRes:False
+batchsize:40
+workers:16
+patch_size:256
+full_size:640
+rotate:10
+scale:1.2
+lr:0.0001
+lr_mode:poly
+window_len:2
+log_interval:10
+save_interval:1000
+momentum:0.9
+weight_decay:0.005
+device:4
+temp:1
+wepoch:10
+nepoch:30
+lc:0.3
+lc_win:8
+color_switch:0.1
+coord_switch:0.0
+savepatch:match_track_switch/savepatch
+logfile:<_io.TextIOWrapper name='match_track_switch/logargs.txt' mode='w' encoding='ANSI_X3.4-1968'>
+multiGPU:True
+vis:True
+color_switch_flag:True
+coord_switch_flag:False
