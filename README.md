@@ -65,6 +65,18 @@ python test_with_track.py -d /workspace/DAVIS/ -s 480
 ```
 Similar parameters as `test.py`, please see the `test_with_track.py` for details.
 
+To test on VIP, please run the following command with your own dataset path:
+
+```
+python test_mask_vip.py -o results/VIP/category/ --scale_size 560 560 --pre_num 1 --root /media/xtli/eb0943df-a3fc-4ae2-a6e5-021cfdcfec3d/home/xtli/DATA/VIP/VIP_Fine/Images/ --val_txt /media/xtli/eb0943df-a3fc-4ae2-a6e5-021cfdcfec3d/home/xtli/DATA/VIP/VIP_Fine/lists/val_videos.txt -c weights/checkpoint_latest.pth.tar 
+```
+
+and 
+
+```
+python eval_vip.py
+````
+
 # Training on Kinetics
 
 ## Dataset
