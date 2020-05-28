@@ -1,6 +1,6 @@
 # Joint-task Self-supervised Learning for Temporal Correspondence
 
-[**Project**](https://sites.google.com/view/uvc2019) | [**Paper**]()
+[**Project**](https://sites.google.com/view/uvc2019) | [**Paper**](https://papers.nips.cc/paper/8324-joint-task-self-supervised-learning-for-temporal-correspondence.pdf)
 
 # Overview
 
