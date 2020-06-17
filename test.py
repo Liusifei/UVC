@@ -14,7 +14,7 @@ import torch.nn as nn
 # Customized libraries
 from libs.test_utils import *
 from libs.model import transform
-from libs.vis_utils import norm_mask
+from libs.utils import norm_mask
 from libs.model import Model_switchGTfixdot_swCC_Res as Model
 
 ############################## helper functions ##############################
